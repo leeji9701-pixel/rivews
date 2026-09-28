@@ -11,7 +11,7 @@ from .classifier import AUTO, classify
 from .config import DATA_DIR, Account, Settings, load_yaml
 from .sheets import DailyReport, PendingSheet
 from .site import ReviewSite
-from .templates import build_reply
+from .templates import build_manual_draft, build_reply
 
 log = logging.getLogger(__name__)
 
@@ -31,14 +31,14 @@ def _safe(name: str) -> str:
     return re.sub(r'[\\/:*?"<>|\s]+', "_", name)[:40]
 
 
-def run(settings: Settings, account_name: str | None = None, approved_only: bool = False) -> None:
+def run(settings: Settings, account_name: str | None = None) -> None:
     selectors = load_yaml("selectors.yaml")
     rules = load_yaml("templates.yaml")
     pending = PendingSheet(settings.folder("pending_file"))
     report = DailyReport(settings.folder("reports"))
     capture_dir = settings.folder("captures") / datetime.now().strftime("%Y-%m-%d")
     known = pending.keys()
-    stats = {"auto": 0, "draft": 0, "manual": 0, "approved": 0, "fail": 0}
+    stats = {"auto": 0, "draft": 0, "manual": 0, "fail": 0}
 
     with sync_playwright() as p:
         for account in settings.find_accounts(account_name):
@@ -52,20 +52,7 @@ def run(settings: Settings, account_name: str | None = None, approved_only: bool
                     continue
                 site.open_reviews()
 
-                # 1) 확인대기.xlsx 에 담당자가 써둔 답글 먼저 등록
-                for row, key, body in pending.approved(account.platform, account.name):
-                    if site.post_reply(key, body):
-                        pending.mark_done(row)
-                        stats["approved"] += 1
-                        log.info("확인 답글 등록 완료 (확인대기 %d행)", row)
-                    else:
-                        stats["fail"] += 1
-                        log.warning("확인 답글 등록 실패 (확인대기 %d행)", row)
-                    site.pause()
-                if approved_only:
-                    continue
-
-                # 2) 미답변 리뷰 분류 → 자동답글 / 확인후등록
+                # 미답변 리뷰 분류 → 자동답글 / 확인후등록(캡처 + 답글 초안, 등록은 담당자가 직접)
                 posted = 0
                 for review in site.unanswered():
                     decision = classify(review, rules)
@@ -93,10 +80,11 @@ def run(settings: Settings, account_name: str | None = None, approved_only: bool
                             f"{n:02d}_{_safe(account.name)}_{review.rating or '?'}점_{_safe(review.author)}.png"
                         )
                         captured = site.capture(review.key, shot)
-                        pending.add(review, decision.reason, str(shot) if captured else "캡처 실패")
+                        draft = build_manual_draft(decision.category, rules)
+                        pending.add(review, decision.reason, str(shot) if captured else "캡처 실패", draft)
                         known.add(review.key)
                         stats["manual"] += 1
-                        report.add(review, decision.kind, decision.reason, "", "", "확인대기 등록")
+                        report.add(review, decision.kind, decision.reason, decision.category or "", draft, "검수대기")
             except Exception:
                 stats["fail"] += 1
                 log.exception("%s 처리 중 오류", account.label)
@@ -113,11 +101,11 @@ def run(settings: Settings, account_name: str | None = None, approved_only: bool
     pending_path = pending.save()
     report_path = report.save()
     log.info(
-        "완료 | 자동등록 %d · 초안 %d · 확인필요 %d · 확인답글등록 %d · 실패 %d",
-        stats["auto"], stats["draft"], stats["manual"], stats["approved"], stats["fail"],
+        "완료 | 자동등록 %d · 초안(시험운영) %d · 검수대기 %d · 실패 %d",
+        stats["auto"], stats["draft"], stats["manual"], stats["fail"],
     )
     if stats["manual"]:
-        log.info("확인이 필요한 리뷰: %s (캡처: %s)", pending_path, capture_dir)
+        log.info("검수 후 직접 등록할 리뷰: %s (캡처: %s)", pending_path, capture_dir)
     if report_path:
         log.info("처리내역: %s", report_path)
 

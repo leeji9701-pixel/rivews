@@ -12,18 +12,23 @@ MANUAL = "확인후등록"
 class Decision:
     kind: str
     reason: str
+    category: str | None = None  # 확인후등록일 때 클레임 유형 (답글 초안 선택용)
 
 
 def classify(review: Review, rules: dict) -> Decision:
     text = normalize(review.text)
 
     abusive = [k for k in rules.get("abusive_keywords", []) if normalize(k) in text]
+    for cat in rules.get("claim_categories", []):
+        hits = [k for k in cat["keywords"] if normalize(k) in text]
+        if hits:
+            reason = f"{cat['name']}: {', '.join(hits)}"
+            if abusive:
+                reason = f"욕설/비방: {', '.join(abusive)} / " + reason
+            return Decision(MANUAL, reason, cat["name"])
+
     if abusive:
         return Decision(MANUAL, f"욕설/비방: {', '.join(abusive)}")
-
-    claims = [k for k in rules.get("claim_keywords", []) if normalize(k) in text]
-    if claims:
-        return Decision(MANUAL, f"클레임 키워드: {', '.join(claims)}")
 
     if review.rating is None:
         return Decision(MANUAL, "별점 확인 불가")

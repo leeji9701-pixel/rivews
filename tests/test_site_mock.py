@@ -60,3 +60,47 @@ def test_post_reply_and_capture(site, tmp_path: Path):
     assert [x.author for x in site.unanswered()] == ["이영희"]
     shot = tmp_path / "lee.png"
     assert site.capture(lee.key, shot) and shot.stat().st_size > 0
+
+
+def test_runner_never_posts_manual_reviews(tmp_path, monkeypatch):
+    """전체 흐름: 5점은 자동 등록, 1점(최악)은 등록 없이 캡처 + 확인대기 초안만."""
+    from openpyxl import load_workbook
+
+    from review_bot import runner
+    from review_bot.config import Settings
+
+    settings = Settings({
+        "dry_run": False, "headless": True, "delay_seconds": [0, 0], "max_replies_per_account": 50,
+        "folders": {"captures": str(tmp_path / "cap"), "reports": str(tmp_path / "rep"),
+                    "pending_file": str(tmp_path / "pending.xlsx")},
+        "accounts": [{"platform": "baemin", "name": "테스트", "env_prefix": "T"}],
+    })
+    real_yaml = runner.load_yaml
+    monkeypatch.setattr(runner, "load_yaml", lambda n: {"baemin": SEL} if n == "selectors.yaml" else real_yaml(n))
+    monkeypatch.setattr(runner, "DATA_DIR", tmp_path)
+
+    pages = []
+
+    def fake_ctx(p, account, headless):
+        ctx = p.chromium.launch_persistent_context(
+            str(tmp_path / "s"), headless=True, executable_path=os.environ.get("CHROMIUM_PATH") or None)
+        ctx.pages[0].set_content(HTML)
+        pages.append(ctx.pages[0])
+        ctx.pages[0].goto = lambda *a, **k: None  # 가짜 페이지 유지
+        return ctx
+
+    monkeypatch.setattr(runner, "_open_context", fake_ctx)
+
+    runner.run(settings)
+
+    ws = load_workbook(tmp_path / "pending.xlsx").active
+    rows = list(ws.iter_rows(min_row=2, values_only=True))
+    assert len(rows) == 1
+    status, *_, capture, draft, _key = rows[0]
+    assert status == "검수대기" and rows[0][4] == "이영희"
+    assert draft.startswith("101번지 남산돈까스 본점입니다.")
+    assert list((tmp_path / "cap").rglob("*.png"))
+
+    report = load_workbook(next((tmp_path / "rep").glob("*.xlsx"))).active
+    results = {r[3]: r[12] for r in report.iter_rows(min_row=2, values_only=True)}
+    assert results == {"김철수": "등록완료", "이영희": "검수대기"}

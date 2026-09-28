@@ -1,4 +1,4 @@
-"""확인대기.xlsx (사람이 답글 작성) 와 처리내역/날짜.xlsx (매일 결과) 관리."""
+"""확인대기.xlsx (악성·저별점 답글 초안, 사람이 검수 후 직접 등록) 와 처리내역/날짜.xlsx 관리."""
 from __future__ import annotations
 
 import logging
@@ -7,18 +7,19 @@ from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
 
 log = logging.getLogger(__name__)
 
 PENDING_HEADERS = [
     "상태", "등록일", "플랫폼", "계정", "고객", "주문횟수", "별점",
-    "리뷰내용", "분류사유", "캡처파일", "답글(여기에 작성)", "리뷰키(수정금지)",
+    "리뷰내용", "분류사유", "캡처파일", "답글 초안(검수 후 직접 등록)", "리뷰키(수정금지)",
 ]
 REPORT_HEADERS = [
     "시간", "플랫폼", "계정", "고객", "주문횟수", "별점", "사진",
     "리뷰내용", "분류", "사유", "템플릿", "답글", "결과",
 ]
-WAITING, DONE = "대기", "등록완료"
+WAITING, DONE = "검수대기", "등록완료"
 COL = {h: i + 1 for i, h in enumerate(PENDING_HEADERS)}
 
 
@@ -53,32 +54,22 @@ class PendingSheet:
         if path.exists():
             self.wb = load_workbook(path)
         else:
-            self.wb = _new_book(PENDING_HEADERS, {1: 9, 2: 11, 3: 10, 4: 12, 5: 12, 8: 50, 9: 22, 10: 40, 11: 60, 12: 18})
+            self.wb = _new_book(PENDING_HEADERS, {1: 10, 2: 11, 3: 10, 4: 12, 5: 12, 8: 50, 9: 22, 10: 40, 11: 60, 12: 18})
+            status = DataValidation(type="list", formula1=f'"{WAITING},{DONE}"', allow_blank=True)
+            status.add("A2:A5000")
+            self.wb.active.add_data_validation(status)
         self.ws = self.wb.active
 
     def keys(self) -> set[str]:
         return {str(r[COL["리뷰키(수정금지)"] - 1]) for r in self.ws.iter_rows(min_row=2, values_only=True) if r[0]}
 
-    def add(self, review, reason: str, capture: str) -> None:
+    def add(self, review, reason: str, capture: str, draft: str) -> None:
         self.ws.append([
             WAITING, datetime.now().strftime("%Y-%m-%d"), review.platform, review.account,
-            review.author, review.order_count, review.rating, review.text, reason, capture, "", review.key,
+            review.author, review.order_count, review.rating, review.text, reason, capture, draft, review.key,
         ])
         for c in self.ws[self.ws.max_row]:
             c.alignment = Alignment(wrap_text=True, vertical="top")
-
-    def approved(self, platform: str, account: str) -> list[tuple[int, str, str]]:
-        """(행번호, 리뷰키, 답글) - 상태가 '대기'이고 답글이 채워진 것."""
-        out = []
-        for i, r in enumerate(self.ws.iter_rows(min_row=2, values_only=True), start=2):
-            status, plat, acc = r[0], r[COL["플랫폼"] - 1], r[COL["계정"] - 1]
-            reply = (r[COL["답글(여기에 작성)"] - 1] or "").strip()
-            if status == WAITING and plat == platform and acc == account and reply:
-                out.append((i, str(r[COL["리뷰키(수정금지)"] - 1]), reply))
-        return out
-
-    def mark_done(self, row: int) -> None:
-        self.ws.cell(row=row, column=COL["상태"], value=DONE)
 
     def save(self) -> Path:
         return _save(self.wb, self.path)

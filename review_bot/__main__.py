@@ -30,7 +30,6 @@ def main(argv: list[str] | None = None) -> None:
     r = sub.add_parser("run", help="리뷰 답글 작업 실행")
     r.add_argument("--account", help="특정 계정만 (settings.yaml 의 name)")
     r.add_argument("--scheduled", action="store_true", help="매일 정기 실행 (날짜별 예외가 있으면 건너뜀)")
-    r.add_argument("--approved-only", action="store_true", help="확인대기.xlsx 답글만 등록")
 
     for name, help_ in [("login", "직접 로그인/문자 인증"), ("dump", "리뷰 화면 저장(점검용)")]:
         sp = sub.add_parser(name, help=help_)
@@ -80,11 +79,11 @@ def main(argv: list[str] | None = None) -> None:
         if args.scheduled and schedule.regular_run_skipped():
             log.info("오늘은 날짜별 예외가 있어 정기 실행을 건너뜁니다.")
             return
-        if settings.dry_run and not args.approved_only:
+        if settings.dry_run:
             log.info("[시험 운영] dry_run=true → 템플릿 답글은 등록하지 않고 초안만 기록합니다.")
         from .runner import run
 
-        run(settings, args.account, approved_only=args.approved_only)
+        run(settings, args.account)
     elif args.cmd == "login":
         from .runner import manual_login
 
