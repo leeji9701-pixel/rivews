@@ -1,0 +1,49 @@
+# ============================================================
+# 101번지 남산돈까스 리뷰 답글 자동화 - 기본 설정
+# ============================================================
+
+# 매일 자동 실행 시간 (HH:MM)
+# 직접 고치지 말고 '매일시간변경.bat' 을 실행하면 작업 스케줄러까지 함께 바뀝니다.
+schedule_time: "08:30"
+
+# true  = 템플릿 답글을 실제로 등록하지 않고 '처리내역' 엑셀에 초안만 기록 (시험 운영)
+# false = 템플릿 답글을 실제로 등록
+# ※ 확인대기.xlsx 에 직접 쓴 답글(답글등록.bat)은 이 값과 관계없이 등록됩니다.
+dry_run: true
+
+# false = 브라우저 창을 띄워서 작업 (플랫폼 차단 위험이 낮아 권장)
+headless: false
+
+# 계정당 한 번에 등록할 최대 답글 수
+max_replies_per_account: 50
+
+# 동작 사이 대기 시간(초) 범위 - 너무 빠르면 자동화로 의심받을 수 있어요
+delay_seconds: [2, 5]
+
+folders:
+  captures: 악성리뷰        # 악성 리뷰 캡처: 악성리뷰/2026-09-28/...png
+  reports: 처리내역         # 매일 처리 결과: 처리내역/2026-09-28.xlsx
+  pending_file: 확인대기.xlsx  # 확인 후 등록할 리뷰 목록
+
+# 계정 목록 - env_prefix 는 .env 의 변수 이름 앞부분과 같아야 합니다.
+# name 은 보기 편하게 매장명 등으로 바꿔도 됩니다.
+# 매장마다 리뷰 페이지 주소가 다르면 reviews_url: "https://..." 를 추가하세요.
+accounts:
+  - platform: baemin
+    name: 배민_계정1
+    env_prefix: BAEMIN_1
+  - platform: baemin
+    name: 배민_계정2
+    env_prefix: BAEMIN_2
+  - platform: baemin
+    name: 배민_계정3
+    env_prefix: BAEMIN_3
+  - platform: coupangeats
+    name: 쿠팡_계정1
+    env_prefix: COUPANG_1
+  - platform: coupangeats
+    name: 쿠팡_계정2
+    env_prefix: COUPANG_2
+  - platform: coupangeats
+    name: 쿠팡_계정3
+    env_prefix: COUPANG_3

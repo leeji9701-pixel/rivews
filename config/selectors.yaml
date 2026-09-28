@@ -1,0 +1,60 @@
+# ============================================================
+# 플랫폼 화면 요소 위치 (CSS 선택자)
+#
+# ⚠️ 미검증 값입니다. 배민/쿠팡이츠 사장님 사이트는 로그인해야 볼 수 있어서
+#    실제 화면을 보지 못하고 작성한 '초기값'입니다.
+#    첫 실행 전 '페이지점검.bat' 으로 실제 화면을 저장해서 맞춰야 합니다.
+#    플랫폼이 화면을 바꾸면 이 파일만 고치면 됩니다.
+# ============================================================
+
+baemin:
+  reviews_url: "https://self.baemin.com/shops/reviews"
+  login:
+    url: "https://biz-member.baemin.com/login"
+    id_input: "input[name='id']"
+    pw_input: "input[name='password']"
+    submit: "button[type='submit']"
+  reviews:
+    list_ready: "[class*='ReviewList'], [class*='review-list']"
+    unanswered_tab: "text=미답변"          # 없으면 빈 값("")
+    card: "[class*='ReviewItem'], [class*='review-item']"
+    author: "[class*='nickname'], [class*='Nickname']"
+    order_count_text: "[class*='order'], [class*='Order']"
+    order_count_regex: "(\\d+)\\s*(?:번째|회)"
+    date: "[class*='date'], [class*='Date']"
+    rating:
+      mode: count                       # count = 채워진 별 개수 / text = 텍스트·속성에서 숫자 추출
+      selector: "[class*='star'][class*='fill'], [class*='Star'][class*='active']"
+    text: "[class*='contents'], [class*='Content'] p"
+    photo: "img[src*='review'], [class*='photo'] img"
+    reply_exists: "[class*='comment'], [class*='OwnerReply']"
+    reply_button: "button:has-text('댓글 등록'), button:has-text('사장님 댓글')"
+    reply_textarea: "textarea"
+    reply_submit: "button:has-text('등록')"
+    load_more: "button:has-text('더보기')"
+
+coupangeats:
+  reviews_url: "https://store.coupangeats.com/merchant/management/reviews"
+  login:
+    url: "https://store.coupangeats.com/merchant/login"
+    id_input: "input#loginId, input[name='loginId']"
+    pw_input: "input#password, input[name='password']"
+    submit: "button[type='submit']"
+  reviews:
+    list_ready: "[class*='review']"
+    unanswered_tab: "text=미답변"
+    card: "[class*='review-item'], tr[class*='review']"
+    author: "[class*='nickname'], [class*='name']"
+    order_count_text: "[class*='order']"
+    order_count_regex: "(\\d+)\\s*(?:번째|회)"
+    date: "[class*='date']"
+    rating:
+      mode: count
+      selector: "[class*='star'][class*='active'], svg[fill='#FFC400']"
+    text: "[class*='review-text'], [class*='content']"
+    photo: "img[src*='review']"
+    reply_exists: "[class*='reply-content'], [class*='owner-reply']"
+    reply_button: "button:has-text('사장님 댓글 등록하기'), button:has-text('댓글')"
+    reply_textarea: "textarea"
+    reply_submit: "button:has-text('등록')"
+    load_more: ""
