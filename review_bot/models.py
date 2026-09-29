@@ -19,11 +19,12 @@ class Review:
     order_count: int | None = None
     has_photo: bool = False
     date_text: str = ""
+    store: str = ""  # 여러 매장 계정일 때 매장 이름
 
     @property
     def key(self) -> str:
         """같은 리뷰를 다시 찾을 때 쓰는 고유값 (확인대기.xlsx 매칭용)."""
         raw = "|".join(
-            [self.platform, self.account, self.author, self.date_text, normalize(self.text)[:100]]
+            [self.platform, self.account, self.store, self.author, self.date_text, normalize(self.text)[:100]]
         )
         return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:16]

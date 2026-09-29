@@ -48,6 +48,14 @@ class Account:
 
 
 @dataclass
+class Store:
+    """한 계정에서 운영하는 매장 (여러 브랜드 동시 운영 계정용)."""
+    name: str
+    brand: str
+    store_id: str | None = None
+
+
+@dataclass
 class Settings:
     raw: dict
 
@@ -86,6 +94,17 @@ class Settings:
 
     def folder(self, key: str) -> Path:
         return ROOT / self.raw["folders"][key]
+
+    def stores_for(self, account: Account) -> list[Store]:
+        """아이디가 multi_store_accounts 의 id_prefix 로 시작하면 매장 목록, 아니면 빈 목록(매장 전환 없음)."""
+        creds = account.credentials()
+        if not creds:
+            return []
+        for rule in self.raw.get("multi_store_accounts") or []:
+            if creds[0].lower().startswith(str(rule["id_prefix"]).lower()):
+                return [Store(s["name"], s["brand"], str(s["store_id"]) if s.get("store_id") else None)
+                        for s in rule["stores"]]
+        return []
 
     def find_accounts(self, name: str | None) -> list[Account]:
         if not name:

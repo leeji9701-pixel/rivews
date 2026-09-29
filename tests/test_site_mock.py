@@ -97,10 +97,36 @@ def test_runner_never_posts_manual_reviews(tmp_path, monkeypatch):
     rows = list(ws.iter_rows(min_row=2, values_only=True))
     assert len(rows) == 1
     status, *_, capture, draft, _key = rows[0]
-    assert status == "검수대기" and rows[0][4] == "이영희"
+    assert status == "검수대기" and rows[0][5] == "이영희"
     assert draft.startswith("101번지 남산돈까스 본점입니다.")
     assert list((tmp_path / "cap").rglob("*.png"))
 
     report = load_workbook(next((tmp_path / "rep").glob("*.xlsx"))).active
-    results = {r[3]: r[12] for r in report.iter_rows(min_row=2, values_only=True)}
+    results = {r[4]: r[13] for r in report.iter_rows(min_row=2, values_only=True)}
     assert results == {"김철수": "등록완료", "이영희": "검수대기"}
+
+
+SWITCH_HTML = """
+<button class="cur" onclick="document.querySelector('.menu').style.display='block'">101번지 남산돈까스</button>
+<ul class="menu" style="display:none">
+ <li onclick="document.querySelector('.cur').textContent='101번지 남산돈까스'">101번지 남산돈까스</li>
+ <li onclick="document.querySelector('.cur').textContent='가가솥밥 (14928762)'">가가솥밥 (14928762)</li>
+</ul>
+<div class="list">리뷰 목록</div>"""
+
+
+def test_switch_store_by_clicking_name(tmp_path):
+    from review_bot.config import Store
+
+    sel = {**SEL, "store_switch": {"home_url": "", "url": "", "open": ".cur", "option": ".menu li", "current": ".cur"}}
+    with sync_playwright() as p:
+        browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM_PATH") or None)
+        page = browser.new_page()
+        page.set_content(SWITCH_HTML)
+        site = ReviewSite(page, Account("baemin", "gaga", "G"), sel, delay=(0, 0))
+        site.goto = lambda url: True  # 가짜 페이지 유지
+        assert site.switch_store(Store("가가솥밥", "gagasotbap", "14928762"))
+        assert "가가솥밥" in page.inner_text(".cur")
+        # 없는 매장은 선택 확인 실패 → False (다른 매장에 답글 달지 않음)
+        assert not site.switch_store(Store("없는매장", "namsan"))
+        browser.close()

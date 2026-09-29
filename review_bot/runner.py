@@ -11,7 +11,7 @@ from .classifier import AUTO, classify
 from .config import DATA_DIR, Account, Settings, load_yaml
 from .sheets import DailyReport, PendingSheet
 from .site import ReviewSite
-from .templates import build_manual_draft, build_reply
+from .templates import build_manual_draft, build_reply, rules_for
 
 log = logging.getLogger(__name__)
 
@@ -58,41 +58,18 @@ def run(settings: Settings, account_name: str | None = None) -> None:
                 if not site.ensure_logged_in(account.credentials()):
                     stats["fail"] += 1
                     continue
-                site.open_reviews()
-
-                # 미답변 리뷰 분류 → 자동답글 / 확인후등록(캡처 + 답글 초안, 등록은 담당자가 직접)
+                stores = settings.stores_for(account) or [None]  # None = 매장 전환 없는 일반 계정
                 posted = 0
-                for review in site.unanswered():
-                    decision = classify(review, rules)
-                    if decision.kind == AUTO:
-                        if posted >= settings.max_replies:
-                            continue
-                        tpl, body = build_reply(review, rules)
-                        if settings.dry_run:
-                            result = "초안(미등록)"
-                            stats["draft"] += 1
-                        elif site.post_reply(review.key, body):
-                            result = "등록완료"
-                            stats["auto"] += 1
-                            posted += 1
-                        else:
-                            result = "등록실패"
+                for store in stores:
+                    if store is not None:
+                        log.info("--- 매장: %s ---", store.name)
+                        if not site.switch_store(store):
                             stats["fail"] += 1
-                        report.add(review, decision.kind, decision.reason, tpl, body, result)
-                        site.pause()
-                    else:
-                        if review.key in known:
-                            continue  # 이미 확인대기에 올라간 리뷰
-                        n = len(list(capture_dir.glob("*.png"))) + 1 if capture_dir.exists() else 1
-                        shot = capture_dir / (
-                            f"{n:02d}_{_safe(account.name)}_{review.rating or '?'}점_{_safe(review.author)}.png"
-                        )
-                        captured = site.capture(review.key, shot)
-                        draft = build_manual_draft(decision.category, rules)
-                        pending.add(review, decision.reason, str(shot) if captured else "캡처 실패", draft)
-                        known.add(review.key)
-                        stats["manual"] += 1
-                        report.add(review, decision.kind, decision.reason, decision.category or "", draft, "검수대기")
+                            continue
+                    brand_rules = rules_for(rules, store.brand if store else None)
+                    site.open_reviews(store)
+                    posted = _process(site, account, brand_rules, settings, pending, report,
+                                      capture_dir, known, stats, posted)
             except Exception:
                 stats["fail"] += 1
                 log.exception("%s 처리 중 오류", account.label)
@@ -116,6 +93,41 @@ def run(settings: Settings, account_name: str | None = None) -> None:
         log.info("검수 후 직접 등록할 리뷰: %s (캡처: %s)", pending_path, capture_dir)
     if report_path:
         log.info("처리내역: %s", report_path)
+
+
+def _process(site, account, rules, settings, pending, report, capture_dir, known, stats, posted) -> int:
+    """미답변 리뷰 분류 → 자동답글 / 확인후등록(캡처 + 답글 초안, 등록은 담당자가 직접)."""
+    for review in site.unanswered():
+        decision = classify(review, rules)
+        if decision.kind == AUTO:
+            if posted >= settings.max_replies:
+                continue
+            tpl, body = build_reply(review, rules)
+            if settings.dry_run:
+                result = "초안(미등록)"
+                stats["draft"] += 1
+            elif site.post_reply(review.key, body):
+                result = "등록완료"
+                stats["auto"] += 1
+                posted += 1
+            else:
+                result = "등록실패"
+                stats["fail"] += 1
+            report.add(review, decision.kind, decision.reason, tpl, body, result)
+            site.pause()
+        else:
+            if review.key in known:
+                continue  # 이미 확인대기에 올라간 리뷰
+            n = len(list(capture_dir.glob("*.png"))) + 1 if capture_dir.exists() else 1
+            where = _safe(review.store or account.name)
+            shot = capture_dir / f"{n:02d}_{where}_{review.rating or '?'}점_{_safe(review.author)}.png"
+            captured = site.capture(review.key, shot)
+            draft = build_manual_draft(decision.category, rules)
+            pending.add(review, decision.reason, str(shot) if captured else "캡처 실패", draft)
+            known.add(review.key)
+            stats["manual"] += 1
+            report.add(review, decision.kind, decision.reason, decision.category or "", draft, "검수대기")
+    return posted
 
 
 def manual_login(settings: Settings, account_name: str | None = None) -> None:

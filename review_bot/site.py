@@ -10,7 +10,7 @@ from pathlib import Path
 from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PWTimeout
 
-from .config import Account
+from .config import Account, Store
 from .models import Review
 
 log = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ class ReviewSite:
         self.r = selectors["reviews"]
         self.delay = delay
         self.reviews_url = account.reviews_url or selectors["reviews_url"]
+        self.store_name = ""
 
     # ---------- 공통 ----------
     def pause(self) -> None:
@@ -82,8 +83,47 @@ class ReviewSite:
         )
         return False
 
+    # ---------- 매장 선택 (여러 매장 계정) ----------
+    def _current_store_is(self, store: Store) -> bool:
+        cur = self.sel.get("store_switch", {}).get("current")
+        if not cur or not self._exists(cur):
+            return False
+        text = " ".join(self.page.locator(cur).all_inner_texts())
+        return store.name in text or bool(store.store_id and store.store_id in text)
+
+    def switch_store(self, store: Store) -> bool:
+        """매장을 선택한다. 선택된 매장을 확인하지 못하면 False (다른 매장에 답글이 달리지 않도록)."""
+        sw = self.sel.get("store_switch") or {}
+        if store.store_id and sw.get("url"):
+            if self.goto(sw["url"].format(store_id=store.store_id)) and self.is_review_page(8000):
+                if self._current_store_is(store) or store.store_id in self.page.url:
+                    return True
+        try:
+            if sw.get("home_url"):
+                self.goto(sw["home_url"])
+                self.page.wait_for_timeout(2000)
+            if not self._current_store_is(store):
+                self.page.locator(sw["open"]).first.click(timeout=10000)
+                self.pause()
+                options = self.page.locator(sw["option"])
+                for label in filter(None, [store.store_id, store.name]):
+                    match = options.filter(has_text=label)
+                    if match.count():
+                        match.first.click()
+                        break
+                self.page.wait_for_timeout(2500)
+            if not self._current_store_is(store):
+                log.error("%s: '%s' 매장 선택을 확인하지 못해 건너뜁니다.", self.account.label, store.name)
+                return False
+            self.reviews_url = self.account.reviews_url or self.sel["reviews_url"]
+            return self.goto(self.reviews_url) and self.is_review_page()
+        except Exception as e:
+            log.error("%s: '%s' 매장 선택 실패 - %s", self.account.label, store.name, str(e).splitlines()[0])
+            return False
+
     # ---------- 리뷰 목록 ----------
-    def open_reviews(self) -> None:
+    def open_reviews(self, store: Store | None = None) -> None:
+        self.store_name = store.name if store else ""
         if self.r.get("unanswered_tab") and self._exists(self.r["unanswered_tab"]):
             self.page.locator(self.r["unanswered_tab"]).first.click()
             self.pause()
@@ -128,6 +168,7 @@ class ReviewSite:
             order_count=int(m.group(1)) if m else None,
             has_photo=self._exists(self.r.get("photo", ""), card),
             date_text=self._text(card, self.r.get("date", "")),
+            store=self.store_name,
         )
 
     def unanswered(self) -> list[Review]:

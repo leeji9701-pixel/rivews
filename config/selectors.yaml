@@ -9,6 +9,13 @@
 
 baemin:
   reviews_url: "https://self.baemin.com/shops/reviews"
+  # 여러 매장 계정: 홈 화면에서 음식점 이름을 눌러 매장 선택
+  store_switch:
+    home_url: "https://self.baemin.com"
+    url: "https://self.baemin.com/shops/{store_id}/reviews"   # 매장 번호로 바로 가는 주소 (없으면 "")
+    open: "[class*='ShopSelect'], [class*='shop-select'], button:has-text('남산돈까스'), button:has-text('가가솥밥')"
+    option: "[role='option'], [class*='ShopItem'], [class*='shop-item'], li"
+    current: "[class*='ShopSelect'], [class*='shop-select'], [class*='ShopName']"   # 현재 선택된 매장 이름 표시 위치
   login:
     url: "https://biz-member.baemin.com/login"
     id_input: "input[name='id']"
@@ -35,6 +42,12 @@ baemin:
 
 coupangeats:
   reviews_url: "https://store.coupangeats.com/merchant/management/reviews"
+  store_switch:
+    home_url: "https://store.coupangeats.com/merchant/management"
+    url: ""
+    open: "[class*='store-select'], [class*='StoreSelect'], button:has-text('남산돈까스'), button:has-text('가가솥밥')"
+    option: "[role='option'], [class*='store-item'], li"
+    current: "[class*='store-select'], [class*='StoreSelect'], [class*='store-name']"
   login:
     url: "https://store.coupangeats.com/merchant/login"
     id_input: "input#loginId, input[name='loginId']"

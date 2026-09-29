@@ -4,7 +4,7 @@ from review_bot.classifier import AUTO, MANUAL, classify
 from review_bot.config import load_yaml
 from review_bot.models import Review
 from review_bot.schedule import parse_time
-from review_bot.templates import build_manual_draft, build_reply
+from review_bot.templates import build_manual_draft, build_reply, rules_for
 
 RULES = load_yaml("templates.yaml")
 
@@ -79,3 +79,35 @@ def test_parse_time(raw, expected):
 def test_parse_time_rejects_garbage():
     with pytest.raises(ValueError):
         parse_time("25:00")
+
+
+def test_gagasotbap_templates_never_mention_namsan():
+    g = rules_for(RULES, "gagasotbap")
+    texts = [build_reply(r(rt, orders=o, photo=ph), g)[1] for rt, o, ph in [(3, 9, 1), (5, 9, 0), (5, 1, 1), (4, 1, 0)]]
+    texts += [build_manual_draft(c["name"], g) for c in RULES["claim_categories"]] + [build_manual_draft(None, g)]
+    for t in texts:
+        assert "가가솥밥" in t and "남산" not in t and "돈까스" not in t
+    assert "무려 9번째나" in texts[1]
+
+
+def test_namsan_rules_unchanged():
+    assert rules_for(RULES, "namsan") is RULES and rules_for(RULES, None) is RULES
+
+
+def test_unknown_brand_fails_loudly():
+    with pytest.raises(KeyError):
+        rules_for(RULES, "없는브랜드")
+
+
+def test_gaga_accounts_get_two_stores(monkeypatch):
+    from review_bot.config import Account, Settings
+
+    settings = Settings.load()
+    monkeypatch.setenv("BAEMIN_1_ID", "GaGa1234")
+    monkeypatch.setenv("BAEMIN_1_PW", "x")
+    monkeypatch.setenv("BAEMIN_2_ID", "namsan01")
+    monkeypatch.setenv("BAEMIN_2_PW", "x")
+    stores = settings.stores_for(Account("baemin", "a", "BAEMIN_1"))
+    assert [(x.name, x.brand, x.store_id) for x in stores] == [
+        ("101번지 남산돈까스", "namsan", None), ("가가솥밥", "gagasotbap", "14928762")]
+    assert settings.stores_for(Account("baemin", "b", "BAEMIN_2")) == []

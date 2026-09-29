@@ -12,11 +12,11 @@ from openpyxl.worksheet.datavalidation import DataValidation
 log = logging.getLogger(__name__)
 
 PENDING_HEADERS = [
-    "상태", "등록일", "플랫폼", "계정", "고객", "주문횟수", "별점",
+    "상태", "등록일", "플랫폼", "계정", "매장", "고객", "주문횟수", "별점",
     "리뷰내용", "분류사유", "캡처파일", "답글 초안(검수 후 직접 등록)", "리뷰키(수정금지)",
 ]
 REPORT_HEADERS = [
-    "시간", "플랫폼", "계정", "고객", "주문횟수", "별점", "사진",
+    "시간", "플랫폼", "계정", "매장", "고객", "주문횟수", "별점", "사진",
     "리뷰내용", "분류", "사유", "템플릿", "답글", "결과",
 ]
 WAITING, DONE = "검수대기", "등록완료"
@@ -53,8 +53,12 @@ class PendingSheet:
         self.path = path
         if path.exists():
             self.wb = load_workbook(path)
-        else:
-            self.wb = _new_book(PENDING_HEADERS, {1: 10, 2: 11, 3: 10, 4: 12, 5: 12, 8: 50, 9: 22, 10: 40, 11: 60, 12: 18})
+            if [c.value for c in self.wb.active[1]] != PENDING_HEADERS:  # 예전 양식이면 보관하고 새로 만듦
+                old = path.with_name(f"{path.stem}_이전양식_{datetime.now():%Y%m%d%H%M}{path.suffix}")
+                path.rename(old)
+                log.warning("확인대기 양식이 바뀌어 기존 파일을 %s 로 보관했습니다.", old.name)
+        if not path.exists():
+            self.wb = _new_book(PENDING_HEADERS, {1: 10, 2: 11, 3: 10, 4: 12, 5: 14, 6: 12, 9: 50, 10: 22, 11: 40, 12: 60, 13: 18})
             status = DataValidation(type="list", formula1=f'"{WAITING},{DONE}"', allow_blank=True)
             status.add("A2:A5000")
             self.wb.active.add_data_validation(status)
@@ -66,7 +70,7 @@ class PendingSheet:
     def add(self, review, reason: str, capture: str, draft: str) -> None:
         self.ws.append([
             WAITING, datetime.now().strftime("%Y-%m-%d"), review.platform, review.account,
-            review.author, review.order_count, review.rating, review.text, reason, capture, draft, review.key,
+            review.store, review.author, review.order_count, review.rating, review.text, reason, capture, draft, review.key,
         ])
         for c in self.ws[self.ws.max_row]:
             c.alignment = Alignment(wrap_text=True, vertical="top")
@@ -82,7 +86,7 @@ class DailyReport:
 
     def add(self, review, kind: str, reason: str, template: str, reply: str, result: str) -> None:
         self.rows.append([
-            datetime.now().strftime("%H:%M"), review.platform, review.account, review.author,
+            datetime.now().strftime("%H:%M"), review.platform, review.account, review.store, review.author,
             review.order_count, review.rating, "O" if review.has_photo else "", review.text,
             kind, reason, template, reply, result,
         ])
@@ -90,10 +94,12 @@ class DailyReport:
     def save(self) -> Path | None:
         if not self.rows:
             return None
+        if self.path.exists() and [c.value for c in load_workbook(self.path).active[1]] != REPORT_HEADERS:
+            self.path = self.path.with_name(f"{self.path.stem}_{datetime.now():%H%M}{self.path.suffix}")
         if self.path.exists():
             wb = load_workbook(self.path)
         else:
-            wb = _new_book(REPORT_HEADERS, {4: 12, 8: 50, 10: 22, 12: 60, 13: 14})
+            wb = _new_book(REPORT_HEADERS, {4: 14, 5: 12, 9: 50, 11: 22, 13: 60, 14: 14})
         ws = wb.active
         for row in self.rows:
             ws.append(row)

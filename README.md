@@ -19,6 +19,14 @@
 
 ---
 
+### 두 브랜드를 함께 운영하는 계정 (gaga)
+
+아이디가 `gaga`로 시작하는 계정은 **101번지 남산돈까스**와 **가가솥밥(14928762)** 두 매장을 하나씩 선택해서 각각 답글을 달아요.
+- 가가솥밥 리뷰에는 가가솥밥 문구(`config/templates.yaml`의 `brands: gagasotbap`)가 들어가요.
+- 매장 선택이 확인되지 않으면 그 매장은 **건너뛰어요.** 다른 매장 리뷰에 다른 브랜드 답글이 달리지 않게 하기 위해서예요.
+- 처리내역과 확인대기 엑셀에 **매장** 칸이 추가됐어요.
+- 매장이나 브랜드를 추가하려면 `config/settings.yaml`의 `multi_store_accounts`를 고치면 돼요.
+
 ## 처음 설치 (사무실 윈도우 PC, 한 번만)
 
 1. [python.org](https://www.python.org/downloads/)에서 Python 3.11 이상을 설치해요. 설치 화면에서 **"Add python.exe to PATH"**를 꼭 체크하세요.

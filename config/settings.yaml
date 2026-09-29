@@ -51,3 +51,16 @@ accounts:
   - platform: coupangeats
     name: 쿠팡_계정3
     env_prefix: COUPANG_3
+
+# 한 계정으로 여러 매장(브랜드)을 운영하는 경우
+# 아이디가 id_prefix 로 시작하는 계정은 아래 매장들을 하나씩 선택해 각각 답글을 답니다.
+# brand 는 config/templates.yaml 의 브랜드 이름 (namsan = 101번지 남산돈까스, gagasotbap = 가가솥밥)
+# store_id 가 있으면 매장 번호로, 없으면 매장 이름으로 찾아 선택합니다.
+multi_store_accounts:
+  - id_prefix: gaga
+    stores:
+      - name: 101번지 남산돈까스
+        brand: namsan
+      - name: 가가솥밥
+        brand: gagasotbap
+        store_id: "14928762"
