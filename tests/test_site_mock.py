@@ -81,7 +81,7 @@ def test_runner_never_posts_manual_reviews(tmp_path, monkeypatch):
 
     pages = []
 
-    def fake_ctx(p, account, headless):
+    def fake_ctx(p, account, headless, channel=None):
         ctx = p.chromium.launch_persistent_context(
             str(tmp_path / "s"), headless=True, executable_path=os.environ.get("CHROMIUM_PATH") or None)
         ctx.pages[0].set_content(HTML)

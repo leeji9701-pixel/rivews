@@ -46,17 +46,24 @@ class ReviewSite:
         except PWTimeout:
             return False
 
+    def goto(self, url: str) -> bool:
+        try:
+            self.page.goto(url, wait_until="domcontentloaded", timeout=30000)
+            return True
+        except Exception as e:  # 접속 차단(ERR_HTTP2_PROTOCOL_ERROR 등), 주소 오류, 시간 초과
+            log.error("%s: %s 접속 실패 - %s", self.account.label, url, str(e).splitlines()[0])
+            return False
+
     def ensure_logged_in(self, creds: tuple[str, str] | None) -> bool:
-        self.page.goto(self.reviews_url, wait_until="domcontentloaded")
-        if self.is_review_page(8000):
+        if self.goto(self.reviews_url) and self.is_review_page(8000):
             return True
         if not creds:
             log.error("%s: .env 에 아이디/비밀번호가 없습니다.", self.account.label)
             return False
 
         L = self.sel["login"]
-        if not self._exists(L["id_input"]):
-            self.page.goto(L["url"], wait_until="domcontentloaded")
+        if not self._exists(L["id_input"]) and not self.goto(L["url"]):
+            return False
         try:
             self.page.fill(L["id_input"], creds[0], timeout=10000)
             self.pause()
@@ -67,8 +74,7 @@ class ReviewSite:
         except PWTimeout:
             log.warning("%s: 로그인 화면 요소를 찾지 못했습니다.", self.account.label)
 
-        self.page.goto(self.reviews_url, wait_until="domcontentloaded")
-        if self.is_review_page():
+        if self.goto(self.reviews_url) and self.is_review_page():
             return True
         log.error(
             "%s: 로그인 실패 (문자 인증 요구 가능). '2_최초로그인.bat' 으로 직접 로그인해 주세요.",

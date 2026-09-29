@@ -16,15 +16,23 @@ from .templates import build_manual_draft, build_reply
 log = logging.getLogger(__name__)
 
 
-def _open_context(p, account: Account, headless: bool):
+def _open_context(p, account: Account, headless: bool, channel: str | None = None):
+    """PC에 설치된 크롬(channel='chrome')을 우선 사용. 쿠팡 등은 기본 Chromium 접속을 차단하기도 한다."""
     account.session_dir.mkdir(parents=True, exist_ok=True)
-    return p.chromium.launch_persistent_context(
-        str(account.session_dir),
+    opts = dict(
         headless=headless,
         locale="ko-KR",
         timezone_id="Asia/Seoul",
         viewport={"width": 1400, "height": 900},
+        args=["--disable-blink-features=AutomationControlled"],
+        ignore_default_args=["--enable-automation"],
     )
+    if channel:
+        try:
+            return p.chromium.launch_persistent_context(str(account.session_dir), channel=channel, **opts)
+        except Exception as e:
+            log.warning("%s 브라우저를 열 수 없어 기본 브라우저로 진행합니다 (%s)", channel, str(e).splitlines()[0])
+    return p.chromium.launch_persistent_context(str(account.session_dir), **opts)
 
 
 def _safe(name: str) -> str:
@@ -43,7 +51,7 @@ def run(settings: Settings, account_name: str | None = None) -> None:
     with sync_playwright() as p:
         for account in settings.find_accounts(account_name):
             log.info("===== %s 시작 =====", account.label)
-            ctx = _open_context(p, account, settings.headless)
+            ctx = _open_context(p, account, settings.headless, settings.browser_channel)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             site = ReviewSite(page, account, selectors[account.platform], settings.delay_range)
             try:
@@ -115,16 +123,22 @@ def manual_login(settings: Settings, account_name: str | None = None) -> None:
     selectors = load_yaml("selectors.yaml")
     with sync_playwright() as p:
         for account in settings.find_accounts(account_name):
-            ctx = _open_context(p, account, headless=False)
+            ctx = _open_context(p, account, headless=False, channel=settings.browser_channel)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             site = ReviewSite(page, account, selectors[account.platform], settings.delay_range)
             print(f"\n▶ {account.label} 로그인 창을 엽니다.")
-            if site.ensure_logged_in(account.credentials()):
-                print("  이미 로그인되어 있습니다.")
-            else:
+            try:
+                if site.ensure_logged_in(account.credentials()):
+                    print("  이미 로그인되어 있습니다.")
+                    continue
+                print(f"  자동 접속이 안 되면 브라우저 주소창에 직접 입력하세요: {site.sel['login']['url']}")
                 input("  브라우저에서 로그인/문자 인증을 마친 뒤 여기서 Enter 를 누르세요...")
                 print("  ✅ 확인 완료" if site.is_review_page(5000) else "  ⚠️ 리뷰 화면이 확인되지 않았습니다 (selectors 점검 필요)")
-            ctx.close()
+            except Exception as e:
+                log.exception("%s 로그인 중 오류", account.label)
+                print(f"  ❌ 오류로 이 계정은 건너뜁니다: {str(e).splitlines()[0]}")
+            finally:
+                ctx.close()
 
 
 def dump_pages(settings: Settings, account_name: str | None = None) -> None:
@@ -134,14 +148,19 @@ def dump_pages(settings: Settings, account_name: str | None = None) -> None:
     out.mkdir(parents=True, exist_ok=True)
     with sync_playwright() as p:
         for account in settings.find_accounts(account_name):
-            ctx = _open_context(p, account, headless=False)
+            ctx = _open_context(p, account, headless=False, channel=settings.browser_channel)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             site = ReviewSite(page, account, selectors[account.platform], settings.delay_range)
-            if not site.ensure_logged_in(account.credentials()):
-                input(f"{account.label}: 브라우저에서 리뷰 화면까지 직접 이동한 뒤 Enter...")
-            page.wait_for_timeout(3000)
-            base: Path = out / account.env_prefix.lower()
-            base.with_suffix(".html").write_text(page.content(), encoding="utf-8")
-            page.screenshot(path=str(base.with_suffix(".png")), full_page=True)
-            print(f"저장: {base}.html / .png")
-            ctx.close()
+            try:
+                if not site.ensure_logged_in(account.credentials()):
+                    input(f"{account.label}: 브라우저에서 리뷰 화면까지 직접 이동한 뒤 Enter...")
+                page.wait_for_timeout(3000)
+                base: Path = out / account.env_prefix.lower()
+                base.with_suffix(".html").write_text(page.content(), encoding="utf-8")
+                page.screenshot(path=str(base.with_suffix(".png")), full_page=True)
+                print(f"저장: {base}.html / .png")
+            except Exception as e:
+                log.exception("%s 화면 저장 중 오류", account.label)
+                print(f"❌ {account.label} 건너뜀: {str(e).splitlines()[0]}")
+            finally:
+                ctx.close()

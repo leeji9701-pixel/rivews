@@ -14,6 +14,10 @@ dry_run: true
 # false = 브라우저 창을 띄워서 작업 (플랫폼 차단 위험이 낮아 권장)
 headless: false
 
+# 사용할 브라우저: chrome = PC에 설치된 구글 크롬 (쿠팡이츠 접속 차단 회피에 필요)
+# 크롬이 없으면 자동으로 기본 브라우저(Chromium)로 진행합니다. 비워두면 항상 기본 브라우저.
+browser_channel: chrome
+
 # 계정당 한 번에 등록할 최대 답글 수
 max_replies_per_account: 50
 

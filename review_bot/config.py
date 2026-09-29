@@ -68,6 +68,10 @@ class Settings:
         return bool(self.raw.get("headless", False))
 
     @property
+    def browser_channel(self) -> str | None:
+        return self.raw.get("browser_channel") or None
+
+    @property
     def max_replies(self) -> int:
         return int(self.raw.get("max_replies_per_account", 50))
 
