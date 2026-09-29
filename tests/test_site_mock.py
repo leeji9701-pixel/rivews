@@ -16,7 +16,7 @@ HTML = """
   <i class="star on"></i><i class="star on"></i><i class="star on"></i><i class="star on"></i><i class="star on"></i>
   <p class="txt">바삭하고 맛있어요</p><img class="pic" src="x.png">
   <button class="rb" onclick="this.parentNode.querySelector('.form').style.display='block'">댓글</button>
-  <div class="form" style="display:none"><textarea></textarea>
+  <div class="form" style="display:none"><textarea>김철수님, </textarea>
    <button onclick="const c=this.closest('.card');const d=document.createElement('div');d.className='reply';d.textContent=c.querySelector('textarea').value;c.appendChild(d);this.parentNode.remove()">등록</button></div>
  </div>
  <div class="card"><b class="nick">이영희</b><i class="star on"></i><p class="txt">최악이에요</p><button class="rb">댓글</button></div>
@@ -48,16 +48,18 @@ def site():
 
 
 def test_extract_skips_answered(site):
-    reviews = site.unanswered()
+    reviews = list(site.iter_unanswered())
     assert [x.author for x in reviews] == ["김철수", "이영희"]
     kim = reviews[0]
     assert (kim.rating, kim.order_count, kim.has_photo) == (5, 7, True)
 
 
 def test_post_reply_and_capture(site, tmp_path: Path):
-    kim, lee = site.unanswered()
+    kim, lee = list(site.iter_unanswered())
     assert site.post_reply(kim.key, "감사합니다")
-    assert [x.author for x in site.unanswered()] == ["이영희"]
+    assert [x.author for x in site.iter_unanswered()] == ["이영희"]
+    # 플랫폼이 미리 넣어둔 '김철수님, ' 뒤에 본문이 붙어야 함
+    assert site.page.inner_text(".card .reply") == "김철수님, 감사합니다"
     shot = tmp_path / "lee.png"
     assert site.capture(lee.key, shot) and shot.stat().st_size > 0
 

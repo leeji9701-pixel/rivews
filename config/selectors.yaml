@@ -1,46 +1,49 @@
 # ============================================================
 # 플랫폼 화면 요소 위치 (CSS 선택자)
+# 플랫폼이 화면을 바꾸면 이 파일만 고치면 됩니다.
 #
-# ⚠️ 미검증 값입니다. 배민/쿠팡이츠 사장님 사이트는 로그인해야 볼 수 있어서
-#    실제 화면을 보지 못하고 작성한 '초기값'입니다.
-#    첫 실행 전 '페이지점검.bat' 으로 실제 화면을 저장해서 맞춰야 합니다.
-#    플랫폼이 화면을 바꾸면 이 파일만 고치면 됩니다.
+# 배민: 2026-09-29 실제 화면(페이지점검) 기준으로 맞춤. 단, 답글 입력창/등록 버튼은 미검증.
+# 쿠팡이츠: 로그인 화면만 확인됨. 리뷰 화면은 미검증 (로그인 후 페이지점검 필요).
 # ============================================================
 
 baemin:
-  reviews_url: "https://self.baemin.com/shops/reviews"
-  # 여러 매장 계정: 홈 화면에서 음식점 이름을 눌러 매장 선택
-  store_switch:
-    home_url: "https://self.baemin.com"
-    url: "https://self.baemin.com/shops/{store_id}/reviews"   # 매장 번호로 바로 가는 주소 (없으면 "")
-    open: "[class*='ShopSelect'], [class*='shop-select'], button:has-text('남산돈까스'), button:has-text('가가솥밥')"
-    option: "[role='option'], [class*='ShopItem'], [class*='shop-item'], li"
-    current: "[class*='ShopSelect'], [class*='shop-select'], [class*='ShopName']"   # 현재 선택된 매장 이름 표시 위치
+  home_url: "https://self.baemin.com/"
+  # {shop_id} 에는 가게번호가 자동으로 들어갑니다 (홈 화면에서 읽음)
+  reviews_url: "https://self.baemin.com/shops/{shop_id}/reviews"
+  shop_id_from: "select[class*='ShopSelect-module__']"
   login:
-    url: "https://biz-member.baemin.com/login"
-    id_input: "input[name='id']"
-    pw_input: "input[name='password']"
-    submit: "button[type='submit']"
+    url: "https://biz-member.baemin.com/login"          # ✅ 확인됨
+    id_input: "input[name='id']"                          # ✅
+    pw_input: "input[name='password']"                    # ✅
+    submit: "button[type='submit']"                       # ✅
+  # 여러 매장 계정: 리뷰 화면 위쪽 매장 선택 목록 (값 = 가게번호)  ✅
+  store_switch:
+    mode: select
+    select: "select[class*='ShopSelect-module__']"
+    current: "h3[class*='ShopSelect-module__']"
   reviews:
-    list_ready: "[class*='ReviewList'], [class*='review-list']"
-    unanswered_tab: "text=미답변"          # 없으면 빈 값("")
-    card: "[class*='ReviewItem'], [class*='review-item']"
-    author: "[class*='nickname'], [class*='Nickname']"
-    order_count_text: "[class*='order'], [class*='Order']"
-    order_count_regex: "(\\d+)\\s*(?:번째|회)"
-    date: "[class*='date'], [class*='Date']"
+    list_ready: "[role='tablist']:has-text('미답변')"                        # ✅
+    unanswered_tab: "button[role='tab']:has-text('미답변')"                  # ✅
+    card: "div[data-index]:has([class*='ReviewContent-module__'])"            # ✅
+    author: "[class*='ReviewItem-module__'] [data-atelier-component='Flex'] > span[data-atelier-component='Typography']"  # ✅
+    order_count_text: "[class*='ReviewOrderCount-module__']"                  # ✅ "4회 주문 고객"
+    order_count_regex: "(\\d+)\\s*회"
+    date: "span:has-text('리뷰번호')"                                          # ✅ 리뷰번호 (고유값)
     rating:
-      mode: count                       # count = 채워진 별 개수 / text = 텍스트·속성에서 숫자 추출
-      selector: "[class*='star'][class*='fill'], [class*='Star'][class*='active']"
-    text: "[class*='contents'], [class*='Content'] p"
-    photo: "img[src*='review'], [class*='photo'] img"
-    reply_exists: "[class*='comment'], [class*='OwnerReply']"
-    reply_button: "button:has-text('댓글 등록'), button:has-text('사장님 댓글')"
-    reply_textarea: "textarea"
-    reply_submit: "button:has-text('등록')"
-    load_more: "button:has-text('더보기')"
+      mode: count
+      selector: "[class*='ReviewItem-module__'] svg path[fill='#FFC600']"     # ✅ 노란 별 개수
+    text: "[class*='ReviewContent-module__'] > [data-atelier-component='Flex'] > div:nth-of-type(2) > [data-atelier-component='Flex'] > span[data-atelier-component='Typography']"  # ✅
+    photo: "img[alt='리뷰 사진']"                                              # ✅
+    reply_exists: "[class*='CommentItem-module__']"                           # ✅
+    reply_button: "button:has-text('사장님 댓글')"                             # ⚠️ 미답변 카드 버튼 문구 미확인
+    reply_textarea: "textarea"                                                # ⚠️ 미검증
+    reply_submit: "button:text-is('등록')"                                     # ⚠️ 미검증
+    load_more: ""
+    scroll_step: 1200
 
 coupangeats:
+  # 리뷰 주소로 바로 들어가면 Access Denied 가 나와서, 관리 홈을 거쳐 메뉴를 눌러 이동합니다.
+  home_url: "https://store.coupangeats.com/merchant/management"
   reviews_url: "https://store.coupangeats.com/merchant/management/reviews"
   store_switch:
     home_url: "https://store.coupangeats.com/merchant/management"
@@ -49,11 +52,12 @@ coupangeats:
     option: "[role='option'], [class*='store-item'], li"
     current: "[class*='store-select'], [class*='StoreSelect'], [class*='store-name']"
   login:
-    url: "https://store.coupangeats.com/merchant/login"
-    id_input: "input#loginId, input[name='loginId']"
-    pw_input: "input#password, input[name='password']"
-    submit: "button[type='submit']"
+    url: "https://store.coupangeats.com/merchant/login"   # ✅ 확인됨
+    id_input: "input#loginId"                             # ✅
+    pw_input: "input#password"                            # ✅
+    submit: "button[type='submit']"                       # ✅
   reviews:
+    reviews_nav: "a[href*='review']"      # 관리 홈의 리뷰 메뉴 (⚠️ 미검증)
     list_ready: "[class*='review']"
     unanswered_tab: "text=미답변"
     card: "[class*='review-item'], tr[class*='review']"

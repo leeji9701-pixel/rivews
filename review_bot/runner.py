@@ -97,7 +97,7 @@ def run(settings: Settings, account_name: str | None = None) -> None:
 
 def _process(site, account, rules, settings, pending, report, capture_dir, known, stats, posted) -> int:
     """미답변 리뷰 분류 → 자동답글 / 확인후등록(캡처 + 답글 초안, 등록은 담당자가 직접)."""
-    for review in site.unanswered():
+    for review in site.iter_unanswered():
         decision = classify(review, rules)
         if decision.kind == AUTO:
             if posted >= settings.max_replies:
@@ -154,25 +154,51 @@ def manual_login(settings: Settings, account_name: str | None = None) -> None:
 
 
 def dump_pages(settings: Settings, account_name: str | None = None) -> None:
-    """실제 리뷰 화면을 저장해 selectors.yaml 을 맞출 때 사용."""
+    """실제 화면을 저장해 selectors.yaml 을 맞출 때 사용. 답글창은 열기만 하고 등록하지 않는다."""
     selectors = load_yaml("selectors.yaml")
     out = DATA_DIR / "dump" / datetime.now().strftime("%Y%m%d_%H%M")
     out.mkdir(parents=True, exist_ok=True)
+
+    def save(page, name: str) -> None:
+        base: Path = out / name
+        base.with_suffix(".html").write_text(page.content(), encoding="utf-8")
+        page.screenshot(path=str(base.with_suffix(".png")), full_page=True)
+        print(f"  저장: {base.name}.html / .png")
+
     with sync_playwright() as p:
         for account in settings.find_accounts(account_name):
+            print(f"\n▶ {account.label}")
             ctx = _open_context(p, account, headless=False, channel=settings.browser_channel)
             page = ctx.pages[0] if ctx.pages else ctx.new_page()
             site = ReviewSite(page, account, selectors[account.platform], settings.delay_range)
+            prefix = account.env_prefix.lower()
             try:
                 if not site.ensure_logged_in(account.credentials()):
-                    input(f"{account.label}: 브라우저에서 리뷰 화면까지 직접 이동한 뒤 Enter...")
+                    input("  브라우저에서 로그인 후 리뷰 화면까지 직접 이동한 뒤 Enter...")
                 page.wait_for_timeout(3000)
-                base: Path = out / account.env_prefix.lower()
-                base.with_suffix(".html").write_text(page.content(), encoding="utf-8")
-                page.screenshot(path=str(base.with_suffix(".png")), full_page=True)
-                print(f"저장: {base}.html / .png")
+                save(page, prefix)
+                if not site.is_review_page(3000):
+                    print("  ⚠️ 리뷰 화면으로 인식되지 않았습니다.")
+                    continue
+                site.open_reviews()
+                save(page, f"{prefix}_미답변")
+                for review in site.iter_unanswered(max_steps=20):
+                    card = site.find_card(review.key)
+                    if card is not None:
+                        site.open_reply_box(card)
+                        page.wait_for_timeout(2000)
+                        save(page, f"{prefix}_답글창")
+                        print("  (답글창만 열었고 등록하지 않았습니다)")
+                    break
+                else:
+                    print("  미답변 리뷰가 없어 답글창은 확인하지 못했습니다.")
             except Exception as e:
                 log.exception("%s 화면 저장 중 오류", account.label)
-                print(f"❌ {account.label} 건너뜀: {str(e).splitlines()[0]}")
+                print(f"  ❌ 건너뜀: {str(e).splitlines()[0]}")
+                try:
+                    save(page, f"{prefix}_오류")
+                except Exception:
+                    pass
             finally:
                 ctx.close()
+    print(f"\n저장 폴더: {out}")
